@@ -1,4 +1,4 @@
-## Easy Authentication Mod
+## Easy Authentication Mod Bukkit Edition
 
 Since samo_lego deprecated his mod, I consider updating it to the latest version.
 
