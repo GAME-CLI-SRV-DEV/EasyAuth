@@ -1,13 +1,13 @@
 plugins {
     id "java"
     id "java-library"
-    id "fabric-loom" version "1.8-SNAPSHOT"
+    id("io.papermc.paperweight.userdev") version "1.7.5"
     id ("com.modrinth.minotaur") version "2.+"
     id ("com.matthewprenger.cursegradle") version "1.4.0"
 }
 
 repositories {
-    maven { name "Translation"; url "https://maven.nucleoid.xyz" }
+    maven { name "PaperMC" url "https://repo.papermc.io/repository/maven-public/" } // PaperMC repository
     maven { name "Permission"; url "https://oss.sonatype.org/content/repositories/snapshots" }
     maven { name "Floodgate Api"; url "https://repo.opencollab.dev/main" }
 }
@@ -27,15 +27,7 @@ loom {
 }
 
 dependencies {
-    // Fabric
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-    // Translations
-    include modImplementation("xyz.nucleoid:server-translations-api:${project.server_translations_version}")
+    paperweight.paperDevBundle "1.21.3-R0.1-SNAPSHOT"
 
     // Permissions
     include modImplementation("me.lucko:fabric-permissions-api:${project.fabric_permissions_version}")
