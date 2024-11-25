@@ -12,9 +12,7 @@ See [wiki](https://github.com/NikitaCartes/EasyAuth/wiki) for more information.
 
 ### Dependencies
 
-This mod requires:
-
-- `Fabric API` [CurseForge](https://www.curseforge.com/minecraft/mc-mods/fabric-api), [Modrinth](https://modrinth.com/mod/fabric-api)
+This Plugin Requires PaperMC. You Have to use Original EasyAuth on Mod Platform by syncing it with Sinytra. Using Cardboard or Mohist is still half recommended.
 
 ### Contributors
 
