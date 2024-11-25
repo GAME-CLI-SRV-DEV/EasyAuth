@@ -20,11 +20,6 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
-loom {
-    accessWidenerPath = file("src/main/resources/easyauth.accesswidener")
-    serverOnlyMinecraftJar()
-    log4jConfigs.from(file("log4j.xml"))
-}
 
 dependencies {
     paperweight.paperDevBundle "1.21.3-R0.1-SNAPSHOT"
