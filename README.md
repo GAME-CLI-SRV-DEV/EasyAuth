@@ -1,8 +1,6 @@
 ## Easy Authentication Mod Bukkit Edition
 
-Since samo_lego deprecated his mod, I consider updating it to the latest version.
-
-For Minecraft 1.16 and below you can check [original repository](https://github.com/samolego/SimpleAuth).
+This Server Side Mod is Ported as Bukkit version. it's seperated version. 
 
 See [wiki](https://github.com/NikitaCartes/EasyAuth/wiki) for more information.
 
