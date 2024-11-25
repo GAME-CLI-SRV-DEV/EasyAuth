@@ -1,14 +1,10 @@
 plugins {
     id "java"
     id "java-library"
-    id("io.papermc.paperweight.userdev") version "1.7.5"
-    id ("com.modrinth.minotaur") version "2.+"
-    id ("com.matthewprenger.cursegradle") version "1.4.0"
 }
 
 repositories {
     maven { name "PaperMC" url "https://repo.papermc.io/repository/maven-public/" } // PaperMC repository
-    maven { name "Permission"; url "https://oss.sonatype.org/content/repositories/snapshots" }
     maven { name "Floodgate Api"; url "https://repo.opencollab.dev/main" }
 }
 
@@ -22,13 +18,9 @@ java {
 
 
 dependencies {
-    paperweight.paperDevBundle "1.21.3-R0.1-SNAPSHOT"
-
-    // Permissions
-    include modImplementation("me.lucko:fabric-permissions-api:${project.fabric_permissions_version}")
-
+    compileOnly "io.papermc.paper:paper-api:1.21.3-R0.1-SNAPSHOT"
     // Mods
-    modCompileOnly "org.geysermc.floodgate:api:${floodgate_api_version}"
+    compileOnly "org.geysermc.floodgate:api:${floodgate_api_version}"
 
     // Password hashing
     // Argon2
