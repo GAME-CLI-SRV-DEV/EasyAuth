@@ -1,112 +1,96 @@
 package xyz.nikitacartes.easyauth.commands;
 
-import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import me.lucko.fabric.api.permissions.v0.Permissions;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
+import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 import xyz.nikitacartes.easyauth.utils.AuthHelper;
 import xyz.nikitacartes.easyauth.utils.PlayerAuth;
 
-import static com.mojang.brigadier.arguments.StringArgumentType.getString;
-import static com.mojang.brigadier.arguments.StringArgumentType.string;
-import static net.minecraft.server.command.CommandManager.argument;
-import static net.minecraft.server.command.CommandManager.literal;
-import static xyz.nikitacartes.easyauth.EasyAuth.*;
+public class AccountCommand implements CommandExecutor {
 
-public class AccountCommand {
-
-    public static void registerCommand(CommandDispatcher<ServerCommandSource> dispatcher) {
-        // Registering the "/account" command
-        dispatcher.register(literal("account")
-                .requires(Permissions.require("easyauth.commands.account.root", true))
-                .then(literal("unregister")
-                        .requires(Permissions.require("easyauth.commands.account.unregister", true))
-                        .executes(ctx -> {
-                            langConfig.enterPassword.send(ctx.getSource());
-                            return 1;
-                        })
-                        .then(argument("password", string())
-                                .executes(ctx -> unregister(
-                                                ctx.getSource(),
-                                                getString(ctx, "password")
-                                        )
-                                )
-                        )
-                )
-                .then(literal("changePassword") //todo mongodb update
-                        .requires(Permissions.require("easyauth.commands.account.changePassword", true))
-                        .then(argument("old password", string())
-                                .executes(ctx -> {
-                                    langConfig.enterNewPassword.send(ctx.getSource());
-                                    return 1;
-                                })
-                                .then(argument("new password", string())
-                                        .executes(ctx -> changePassword(
-                                                        ctx.getSource(),
-                                                        getString(ctx, "old password"),
-                                                        getString(ctx, "new password")
-                                                )
-                                        )
-                                )
-                        )
-                )
-        );
+    public void registerCommand(JavaPlugin plugin) {
+        plugin.getCommand("account").setExecutor(this);
     }
 
-    // Method called for checking the password and then removing user's account from db
-    private static int unregister(ServerCommandSource source, String pass) throws CommandSyntaxException {
-        // Getting the player who send the command
-        ServerPlayerEntity player = source.getPlayerOrThrow();
-
-        if (config.enableGlobalPassword) {
-            langConfig.cannotUnregister.send(source);
-            return 0;
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("This command can only be used by players.");
+            return true;
         }
 
-        // Different thread to avoid lag spikes
-        THREADPOOL.submit(() -> {
+        Player player = (Player) sender;
+        if (args.length == 0) {
+            player.sendMessage("Usage: /account <unregister|changePassword>");
+            return true;
+        }
+
+        switch (args[0].toLowerCase()) {
+            case "unregister":
+                if (player.hasPermission("easyauth.commands.account.unregister")) {
+                    if (args.length < 2) {
+                        player.sendMessage("Please enter your password.");
+                        return true;
+                    }
+                    unregister(player, args[1]);
+                } else {
+                    player.sendMessage("You do not have permission to use this command.");
+                }
+                break;
+
+            case "changepassword":
+                if (player.hasPermission("easyauth.commands.account.changePassword")) {
+                    if (args.length < 3) {
+                        player.sendMessage("Usage: /account changePassword <old password> <new password>");
+                        return true;
+                    }
+                    changePassword(player, args[1], args[2]);
+                } else {
+                    player.sendMessage("You do not have permission to use this command.");
+                }
+                break;
+
+            default:
+                player.sendMessage("Unknown subcommand. Usage: /account <unregister|changePassword>");
+                break;
+        }
+        return true;
+    }
+
+    private void unregister(Player player, String pass) {
+        Bukkit.getScheduler().runTaskAsynchronously(JavaPlugin.getProvidingPlugin(getClass()), () -> {
             String uuid = ((PlayerAuth) player).easyAuth$getFakeUuid();
             if (AuthHelper.checkPassword(uuid, pass.toCharArray()) == AuthHelper.PasswordOptions.CORRECT) {
                 DB.deleteUserData(uuid);
-                langConfig.accountDeleted.send(source);
+                player.sendMessage("Your account has been deleted.");
                 ((PlayerAuth) player).easyAuth$setAuthenticated(false);
                 ((PlayerAuth) player).easyAuth$saveLastLocation(true);
-                player.networkHandler.disconnect(langConfig.accountDeleted.get());
+                player.kickPlayer("Your account has been deleted.");
                 playerCacheMap.remove(uuid);
-                return;
+            } else {
+                player.sendMessage("Incorrect password.");
             }
-            langConfig.wrongPassword.send(source);
         });
-        return 0;
     }
 
-    // Method called for checking the password and then changing it
-    private static int changePassword(ServerCommandSource source, String oldPass, String newPass) throws CommandSyntaxException {
-        // Getting the player who send the command
-        ServerPlayerEntity player = source.getPlayerOrThrow();
-
-        if (config.enableGlobalPassword) {
-            langConfig.cannotChangePassword.send(source);
-            return 0;
-        }
-        // Different thread to avoid lag spikes
-        THREADPOOL.submit(() -> {
-            if (AuthHelper.checkPassword(((PlayerAuth) player).easyAuth$getFakeUuid(), oldPass.toCharArray()) == AuthHelper.PasswordOptions.CORRECT) {
+    private void changePassword(Player player, String oldPass, String newPass) {
+        Bukkit.getScheduler().runTaskAsynchronously(JavaPlugin.getProvidingPlugin(getClass()), () -> {
+            String uuid = ((PlayerAuth) player).easyAuth$getFakeUuid();
+            if (AuthHelper.checkPassword(uuid, oldPass.toCharArray()) == AuthHelper.PasswordOptions.CORRECT) {
                 if (newPass.length() < extendedConfig.minPasswordLength) {
-                    langConfig.minPasswordChars.send(source);
-                    return;
+                    player.sendMessage("Password is too short.");
                 } else if (newPass.length() > extendedConfig.maxPasswordLength && extendedConfig.maxPasswordLength != -1) {
-                    langConfig.maxPasswordChars.send(source);
-                    return;
+                    player.sendMessage("Password is too long.");
+                } else {
+                    playerCacheMap.get(uuid).password = AuthHelper.hashPassword(newPass.toCharArray());
+                    player.sendMessage("Password updated successfully.");
                 }
-                // Changing password in playercache
-                playerCacheMap.get(((PlayerAuth) player).easyAuth$getFakeUuid()).password = AuthHelper.hashPassword(newPass.toCharArray());
-                langConfig.passwordUpdated.send(source);
             } else {
-                langConfig.wrongPassword.send(source);
+                player.sendMessage("Incorrect old password.");
             }
         });
-        return 0;
     }
 }
