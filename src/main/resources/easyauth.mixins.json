@@ -4,16 +4,15 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CommandManagerMixin",
-    "MinecraftServerMixin",
     "PlayerAdvancementTrackerMixin",
     "PlayerListS2CPacketMixin",
     "PlayerManagerMixin",
-    "SaveAllCommandMixin",
+    "PlayerSaveHandlerMixin",
     "ServerLoginNetworkHandlerMixin",
+    "ServerPlayerEntity$1Mixin",
     "ServerPlayerEntityMixin",
     "ServerPlayNetworkHandlerMixin",
-    "SlotMixin",
-    "PlayerSaveHandlerMixin"
+    "SlotMixin"
   ],
   "minVersion": "0.8",
   "injectors": {

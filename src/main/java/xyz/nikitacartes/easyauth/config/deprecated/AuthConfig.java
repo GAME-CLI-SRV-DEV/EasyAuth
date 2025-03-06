@@ -79,8 +79,7 @@ public class AuthConfig {
         public String successfullyAuthenticated = "§aYou are now authenticated.";
         public String successfulLogout = "§aLogged out successfully.";
         public String timeExpired = "§cTime for authentication has expired.";
-        public String registerRequired = "§6Type /register \u003cpassword\u003e \u003cpassword\u003e to claim this " +
-                "account.";
+        public String registerRequired = "§6Type /register \u003cpassword\u003e \u003cpassword\u003e to claim this account.";
         public String alreadyRegistered = "§6This account name is already registered!";
         public String registerSuccess = "§aYou are now authenticated.";
         public String userdataDeleted = "§aUserdata deleted.";
@@ -97,7 +96,6 @@ public class AuthConfig {
         public String cannotLogout = "§cYou cannot logout!";
         public String offlineUuid = "Offline UUID for %s is %s";
         public String registeredPlayers = "List of registered players:";
-        public String addToForcedOffline = "Player successfully added into forcedOfflinePlayers list";
     }
 
     public static class ExperimentalConfig {

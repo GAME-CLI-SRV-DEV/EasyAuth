@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerLoginNetworking;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.ClientConnection;
 import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.PlayerManager;
@@ -14,10 +15,13 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Uuids;
 import net.minecraft.util.math.BlockPos;
-import xyz.nikitacartes.easyauth.storage.PlayerCacheV0;
+import xyz.nikitacartes.easyauth.storage.PlayerEntryV1;
 import xyz.nikitacartes.easyauth.utils.FloodgateApiHelper;
 import xyz.nikitacartes.easyauth.utils.PlayerAuth;
+import xyz.nikitacartes.easyauth.utils.PlayersCache;
 
+import java.net.SocketAddress;
+import java.time.ZonedDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,76 +45,104 @@ public class AuthEventHandler {
      * @param manager PlayerManager
      * @return Text if player should be disconnected
      */
-    public static Text checkCanPlayerJoinServer(GameProfile profile, PlayerManager manager) {
+    public static Text checkCanPlayerJoinServer(GameProfile profile, PlayerManager manager, SocketAddress socketAddress) {
         // Getting the player. By this point, the player's game profile has been authenticated so the UUID is legitimate.
         String incomingPlayerUsername = profile.getName();
         PlayerEntity onlinePlayer = manager.getPlayer(incomingPlayerUsername);
-
-        // Checking if player username is valid. The pattern is generated when the config is (re)loaded.
-        Matcher matcher = usernamePattern.matcher(incomingPlayerUsername);
 
         if ((onlinePlayer != null && !((PlayerAuth) onlinePlayer).easyAuth$canSkipAuth()) && extendedConfig.preventAnotherLocationKick) {
             // Player needs to be kicked, since there's already a player with that name
             // playing on the server
 
-            return langConfig.playerAlreadyOnline.get(onlinePlayer.getNameForScoreboard());
-        } else if (!(matcher.matches() || (technicalConfig.floodgateLoaded && extendedConfig.floodgateBypassRegex && FloodgateApiHelper.isFloodgatePlayer(profile.getId())))) {
+            // if joining from same IP, allow the player to join
+            String string = socketAddress.toString();
+            if (string.contains("/")) {
+                string = string.substring(string.indexOf(47) + 1);
+            }
+
+            if (string.contains(":")) {
+                string = string.substring(0, string.indexOf(58));
+            }
+
+            if (!((PlayerAuth) onlinePlayer).easyAuth$getIpAddress().equals(string)) {
+                return langConfig.playerAlreadyOnline.get(incomingPlayerUsername);
+            }
+        }
+
+        // Checking if player username is valid. The pattern is generated when the config is (re)loaded.
+        Matcher matcher = usernamePattern.matcher(incomingPlayerUsername);
+
+        if (!(matcher.matches() || (technicalConfig.floodgateLoaded && extendedConfig.floodgateBypassRegex && FloodgateApiHelper.isFloodgatePlayer(profile.getId())))) {
             return langConfig.disallowedUsername.get(extendedConfig.usernameRegexp);
         }
-        // If the player has too many login attempts, kick them immediately.
-        if (config.maxLoginTries != -1) {
-            // We won't load the player cache *into the map* if it is not already present (first join since restart)
-            // because loading the player cache with a null player prevents the last location from being set.
-            if (profile.getId() == null) {
-                LogDebug("Player UUID is null, skipping kicking attempt check.");
-                return null;
-            }
-            String incomingPlayerUuid = profile.getId().toString();
-            PlayerCacheV0 playerCacheV0 = playerCacheMap.containsKey(incomingPlayerUuid) ?
-                    playerCacheMap.get(incomingPlayerUuid) : PlayerCacheV0.fromJson(null, incomingPlayerUuid);
-            if (playerCacheV0.lastKicked >= System.currentTimeMillis() - 1000 * config.resetLoginAttemptsTimeout) {
-                return langConfig.loginTriesExceeded.get();
-            }
+        // If the player name and registered name are different, kick the player if differentUsernameCase is enabled
+        // Create in case of Floodgate player
+        PlayerEntryV1 playerEntryV1 = PlayersCache.getFloodgate(incomingPlayerUsername);
+
+        if (!extendedConfig.allowCaseInsensitiveUsername && !playerEntryV1.username.equals(incomingPlayerUsername)) {
+            return langConfig.differentUsernameCase.get(incomingPlayerUsername);
         }
+
+        if (config.maxLoginTries != -1 && playerEntryV1.lastKickedDate.plusSeconds(config.resetLoginAttemptsTimeout).isAfter(ZonedDateTime.now())) {
+            return langConfig.loginTriesExceeded.get();
+        }
+
         return null;
     }
 
+    public static void loadPlayerData(ServerPlayerEntity player, ClientConnection connection) {
+        PlayerAuth playerAuth = (PlayerAuth) player;
+
+        // Create in case of Carpet player
+        PlayerEntryV1 cache = PlayersCache.getCarpet(player.getNameForScoreboard());
+        boolean update = false;
+        if (cache.uuid == null) {
+            cache.uuid = player.getUuid();
+            update = true;
+        }
+        playerAuth.easyAuth$setPlayerEntryV1(cache);
+
+        playerAuth.easyAuth$setIpAddress(connection);
+        playerAuth.easyAuth$setSkipAuth();
+
+        if (playerAuth.easyAuth$canSkipAuth()) {
+            playerAuth.easyAuth$setAuthenticated(true);
+
+            player.setInvulnerable(false);
+            player.setInvisible(false);
+            update = false;
+        } else if (cache.lastIp.equals(playerAuth.easyAuth$getIpAddress()) && cache.lastAuthenticatedDate.plusSeconds(config.sessionTimeout).isAfter(ZonedDateTime.now())) {
+            playerAuth.easyAuth$setAuthenticated(true);
+
+            player.setInvulnerable(false);
+            player.setInvisible(false);
+
+            cache.lastAuthenticatedDate = ZonedDateTime.now();
+            update = true;
+        }
+
+        if (update) {
+            cache.update();
+        }
+
+        if (extendedConfig.skipAllAuthChecks) {
+            playerAuth.easyAuth$setAuthenticated(true);
+        }
+    }
 
     // Player joining the server
     public static void onPlayerJoin(ServerPlayerEntity player) {
-        if (((PlayerAuth) player).easyAuth$canSkipAuth()) {
-            player.setInvulnerable(false);
-            player.setInvisible(false);
+        PlayerAuth playerAuth = (PlayerAuth) player;
+
+        if (playerAuth.easyAuth$canSkipAuth()) {
             langConfig.onlinePlayerLogin.send(player);
             return;
-        }
-        // Checking if session is still valid
-        String uuid = ((PlayerAuth) player).easyAuth$getFakeUuid();
-        PlayerCacheV0 playerCacheV0;
-
-        if (!playerCacheMap.containsKey(uuid)) {
-            // First join
-            playerCacheV0 = PlayerCacheV0.fromJson(player, uuid);
-            playerCacheMap.put(uuid, playerCacheV0);
-        } else {
-            playerCacheV0 = playerCacheMap.get(uuid);
-        }
-        if (playerCacheV0.isAuthenticated &&
-                playerCacheV0.validUntil >= System.currentTimeMillis() &&
-                player.getIp().equals(playerCacheV0.lastIp)) {
-            // Valid session
-            player.setInvulnerable(false);
-            player.setInvisible(false);
+        } else if (playerAuth.easyAuth$isAuthenticated()) {
             langConfig.validSession.send(player);
             return;
-        }
-        if (extendedConfig.skipAllAuthChecks) {
-            ((PlayerAuth) player).easyAuth$setAuthenticated(true);
-            ((PlayerAuth) player).easyAuth$restoreLastLocation();
+        } else if (extendedConfig.skipAllAuthChecks) {
             return;
         }
-        ((PlayerAuth) player).easyAuth$setAuthenticated(false);
-
 
         // Tries to rescue player from nether portal
         if (extendedConfig.tryPortalRescue) {
@@ -128,18 +160,16 @@ public class AuthEventHandler {
     }
 
     public static void onPlayerLeave(ServerPlayerEntity player) {
-        if (((PlayerAuth) player).easyAuth$canSkipAuth())
+        PlayerAuth playerAuth = (PlayerAuth) player;
+        if (playerAuth.easyAuth$canSkipAuth())
             return;
-        String uuid = ((PlayerAuth) player).easyAuth$getFakeUuid();
-        PlayerCacheV0 playerCacheV0 = playerCacheMap.get(uuid);
 
-        if (playerCacheV0 != null && playerCacheV0.isAuthenticated) {
-            playerCacheV0.lastIp = player.getIp();
-
-            // Setting the session expire time
-            playerCacheV0.validUntil = System.currentTimeMillis() + config.sessionTimeout * 1000L;
+        if (playerAuth.easyAuth$isAuthenticated()) {
+            PlayerEntryV1 playerCache = playerAuth.easyAuth$getPlayerEntryV1();
+            playerCache.lastAuthenticatedDate = ZonedDateTime.now();
+            playerCache.update();
         } else if (config.hidePlayerCoords) {
-            ((PlayerAuth) player).easyAuth$restoreLastLocation();
+            ((PlayerAuth) player).easyAuth$restoreTrueLocation();
 
             player.setInvulnerable(false);
             player.setInvisible(false);
@@ -195,7 +225,7 @@ public class AuthEventHandler {
                 lastAcceptedPacket = System.nanoTime();
             }
             if (!player.isInvulnerable())
-                player.setInvulnerable(true);
+                player.setInvulnerable(extendedConfig.playerInvulnerable);
             return ActionResult.FAIL;
         }
         return ActionResult.PASS;
@@ -274,9 +304,4 @@ public class AuthEventHandler {
         }
     }
 
-    public enum HidingDirection {
-        TO_SPAWN,
-        TO_LAST_LOCATION,
-        NONE
-    }
 }

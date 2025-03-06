@@ -25,9 +25,10 @@ public class ExtendedConfigV1 extends ConfigTemplate {
     public boolean allowItemDropping = false;
     public boolean allowItemMoving = false;
     public boolean allowItemUsing = false;
+    public boolean hideInventory = true;
     public boolean playerInvulnerable = true;
     public boolean playerIgnored = true;
-    public long teleportationTimeoutMs = 5;
+    public long teleportationTimeoutMs = 20;
     public Aliases aliases = new Aliases(true, true);
     public boolean tryPortalRescue = true;
     public long minPasswordLength = 4;
@@ -36,9 +37,14 @@ public class ExtendedConfigV1 extends ConfigTemplate {
     public boolean floodgateBypassRegex = true;
     public boolean hidePlayersFromPlayerList = false;
     public boolean preventAnotherLocationKick = true;
+    @Deprecated
     public boolean useBcrypt = false;
     public boolean forcedOfflineUuid = false;
     public boolean skipAllAuthChecks = false;
+    public boolean allowCaseInsensitiveUsername = false;
+    public boolean checkUnmigratedArgon2 = false;
+    public long authenticationPromptInterval = 10;
+    public MojangApiSettings mojangApiSettings = new MojangApiSettings();
 
     public ExtendedConfigV1() {
         super("extended.conf");
@@ -66,6 +72,7 @@ public class ExtendedConfigV1 extends ConfigTemplate {
         configValues.put("allowItemDropping", wrapIfNecessary(allowItemDropping));
         configValues.put("allowItemMoving", wrapIfNecessary(allowItemMoving));
         configValues.put("allowItemUsing", wrapIfNecessary(allowItemUsing));
+        configValues.put("hideInventory", wrapIfNecessary(hideInventory));
         configValues.put("playerInvulnerable", wrapIfNecessary(playerInvulnerable));
         configValues.put("playerIgnored", wrapIfNecessary(playerIgnored));
         configValues.put("teleportationTimeoutMs", wrapIfNecessary(teleportationTimeoutMs));
@@ -78,9 +85,15 @@ public class ExtendedConfigV1 extends ConfigTemplate {
         configValues.put("floodgateBypassRegex", wrapIfNecessary(floodgateBypassRegex));
         configValues.put("hidePlayersFromPlayerList", wrapIfNecessary(hidePlayersFromPlayerList));
         configValues.put("preventAnotherLocationKick", wrapIfNecessary(preventAnotherLocationKick));
-        configValues.put("useBcrypt", wrapIfNecessary(useBcrypt));
+        // configValues.put("useBcrypt", wrapIfNecessary(useBcrypt));
         configValues.put("forcedOfflineUuid", wrapIfNecessary(forcedOfflineUuid));
         configValues.put("skipAllAuthChecks", wrapIfNecessary(skipAllAuthChecks));
+        configValues.put("allowCaseInsensitiveUsername", wrapIfNecessary(allowCaseInsensitiveUsername));
+        configValues.put("checkUnmigratedArgon2", wrapIfNecessary(checkUnmigratedArgon2));
+        configValues.put("authenticationPromptInterval", wrapIfNecessary(authenticationPromptInterval));
+        configValues.put("mojangApiSettings.url", wrapIfNecessary(mojangApiSettings.url));
+        configValues.put("mojangApiSettings.connectionTimeout", wrapIfNecessary(mojangApiSettings.connectionTimeout));
+        configValues.put("mojangApiSettings.readTimeout", wrapIfNecessary(mojangApiSettings.readTimeout));
         String configTemplate = Resources.toString(getResource("config/" + configPath), UTF_8);
         return new StringSubstitutor(configValues).replace(configTemplate);
     }
@@ -98,6 +111,13 @@ public class ExtendedConfigV1 extends ConfigTemplate {
 
         public boolean login;
         public boolean register;
+    }
+
+    @ConfigSerializable
+    public static final class MojangApiSettings {
+        public String url = "https://api.minecraftservices.com/minecraft/profile/lookup/name/";
+        public int connectionTimeout = 5000;
+        public int readTimeout = 5000;
     }
 
 }
